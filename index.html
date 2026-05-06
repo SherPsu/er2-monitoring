@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhilHealth ER2 MEMSEC Monitoring System</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, getDocs, getDoc, setDoc, doc, query, orderBy, where, onSnapshot, limit, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+        import { firebaseConfig } from './firebase-config.js';
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+
+        // Make Firebase available globally
+        window.firebaseApp = { initializeApp, deleteApp, app, getFirestore, collection, addDoc, updateDoc, deleteDoc, getDocs, getDoc, setDoc, doc, query, orderBy, where, onSnapshot, limit, enableIndexedDbPersistence, getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail };
+        window.firebaseConfig = firebaseConfig;
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-section">
+                <div class="header-text">
+                    <h1>MEMSEC ER2 Monitoring</h1>
+                    <p class="header-desc">Manage and monitor ER2 forms for PhilHealth employer registration</p>
+                </div>
+            </div>
+            <div class="user-section" id="userSection">
+                <div id="liveDateTime" class="live-date-time"></div>
+                <div class="header-user-row">
+                    <div class="user-info" id="userInfo" style="display: none;">
+                        <span class="user-name" id="userName"></span>
+                        <span class="user-role" id="userRole"></span>
+                    </div>
+                    <div class="user-actions">
+                        <button class="btn btn-secondary" id="manageUsersBtn" style="display: none;"
+                            onclick="openUserManagementModal()">Manage Users</button>
+                        <button class="btn btn-primary" id="loginBtn" onclick="openLoginModal()">Login</button>
+                        <button class="btn btn-secondary" id="logoutBtn" style="display: none;"
+                            onclick="handleLogout()">
+                            Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="entry">Form Entry</button>
+            <button class="tab-btn" data-tab="records">Records</button>
+            <button class="tab-btn" data-tab="statistics">Statistics</button>
+        </nav>
+
+        <main>
+            <!-- Tab 1: Form Entry -->
+            <div class="tab-content active" id="tab-entry">
+                <section class="form-section">
+                    <h3>ER2 Form Entry</h3>
+                    <form id="er2Form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="employerName">Employer's Name </label>
+                                <input type="text" id="employerName" name="employerName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pen">PEN (PhilHealth Employer Number) </label>
+                                <input type="text" id="pen" name="pen" required maxlength="12"
+                                    placeholder="XX-XXXXXXX-X">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="numEmployees">Number of Employees </label>
+                                <input type="number" id="numEmployees" name="numEmployees" required min="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="dateReceived">Date Received </label>
+                                <input type="date" id="dateReceived" name="dateReceived" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="dateProcess">Date Processed</label>
+                                <input type="date" id="dateProcess" name="dateProcess">
+                            </div>
+                            <div class="form-group">
+                                <label for="processedBy">Processed By</label>
+                                <input type="text" id="processedBy" name="processedBy">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="dateReleased">Date Released</label>
+                                <input type="date" id="dateReleased" name="dateReleased">
+                            </div>
+                            <div class="form-group">
+                                <label for="receivedBy">Received By</label>
+                                <input type="text" id="receivedBy" name="receivedBy">
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Record</button>
+                            <button type="button" class="btn btn-secondary" id="clearBtn">Clear</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            <!-- Tab 2: Records (Search + Table) -->
+            <div class="tab-content" id="tab-records">
+                <!-- Search and Filter Section -->
+                <section class="search-section">
+                    <h3>Search Records</h3>
+                    <div class="search-row">
+                        <input type="text" id="searchInput" placeholder="Search by Employer Name or PEN...">
+                        <button class="btn btn-primary" id="searchBtn">Search</button>
+                        <button class="btn btn-secondary" id="resetBtn">Reset</button>
+                    </div>
+                    <div class="export-import-row">
+                        <button class="btn btn-export" id="exportBtn">Export to Excel</button>
+                        <button class="btn btn-secondary" id="importBtn">Import Data</button>
+                    </div>
+                </section>
+
+                <!-- Records Table Section -->
+                <section class="table-section">
+                    <h3>ER2 Records</h3>
+                    <div class="table-container">
+                        <table id="recordsTable">
+                            <thead>
+                                <tr>
+                                    <th data-tooltip="Auto-generated document ID">ID</th>
+                                    <th data-tooltip="Legal name of the employer">Employer's Name</th>
+                                    <th data-tooltip="PhilHealth Employer Number">PEN</th>
+                                    <th data-tooltip="Total number of registered employees">Employees</th>
+                                    <th data-tooltip="Number of days since received">Aging (Days)</th>
+                                    <th data-tooltip="Date the ER2 form was received">Date Recv.</th>
+                                    <th data-tooltip="Date the form was processed">Date Proc.</th>
+                                    <th data-tooltip="Officer who processed the form">Proc. By</th>
+                                    <th data-tooltip="Date the form was released">Date Rel.</th>
+                                    <th data-tooltip="Person who received the released form">Recv. By</th>
+                                    <th data-tooltip="Current processing status">Status</th>
+                                    <th data-tooltip="Edit or delete this record">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Tab 3: Statistics -->
+            <div class="tab-content" id="tab-statistics">
+                <section class="stats-section">
+                    <h3>Statistics Dashboard</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-number" id="totalRecords">0</span>
+                            <span class="stat-label">Total Records</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number" id="pendingRecords">0</span>
+                            <span class="stat-label">Pending</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number" id="processedRecords">0</span>
+                            <span class="stat-label">Processed</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number" id="releasedRecords">0</span>
+                            <span class="stat-label">Released</span>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="charts-container">
+                        <div class="chart-wrapper">
+                            <h4>Status Distribution</h4>
+                            <div class="chart-canvas-container">
+                                <canvas id="statusChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h4>Weekly Records</h4>
+                            <div class="chart-canvas-container">
+                                <canvas id="monthlyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Record</h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="editForm">
+                <input type="hidden" id="editId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editEmployerName">Employer's Name</label>
+                        <input type="text" id="editEmployerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPen">PEN</label>
+                        <input type="text" id="editPen" required maxlength="12" placeholder="XX-XXXXXXX-X">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editNumEmployees">Number of Employees</label>
+                        <input type="number" id="editNumEmployees" required min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="editDateReceived">Date Received</label>
+                        <input type="date" id="editDateReceived" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editDateProcess">Date Process</label>
+                        <input type="date" id="editDateProcess">
+                    </div>
+                    <div class="form-group">
+                        <label for="editProcessedBy">Processed By</label>
+                        <input type="text" id="editProcessedBy">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editDateReleased">Date Released</label>
+                        <input type="date" id="editDateReleased">
+                    </div>
+                    <div class="form-group">
+                        <label for="editReceivedBy">Received By</label>
+                        <input type="text" id="editReceivedBy">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Update Record</button>
+                    <button type="button" class="btn btn-secondary" id="cancelEdit">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content login-modal">
+            <div class="login-branding">
+                <div class="login-logo">PHIC</div>
+                <h2 class="login-title">PhilHealth ER2 Monitoring</h2>
+                <p class="login-subtitle">MEMSEC Department</p>
+            </div>
+            <form id="loginForm" class="login-form">
+                <div class="login-icon">🔐</div>
+                <h3 class="login-heading">Secure Login</h3>
+
+                <div class="form-group login-field">
+                    <label for="loginEmail">
+                        <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                            </path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                        Email Address
+                    </label>
+                    <input type="email" id="loginEmail" required placeholder="officer@philhealth.gov.ph">
+                </div>
+
+                <div class="form-group login-field">
+                    <label for="loginPassword">
+                        <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        Password
+                    </label>
+                    <input type="password" id="loginPassword" required placeholder="Enter your secure password">
+                </div>
+
+                <div class="login-options">
+                    <label class="remember-me">
+                        <input type="checkbox" id="rememberMe">
+                        <span>Remember me</span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-login">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                        <polyline points="10,17 15,12 10,7"></polyline>
+                        <line x1="15" y1="12" x2="3" y2="12"></line>
+                    </svg>
+                    Sign In
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Management Modal (Admin Only) -->
+    <div class="modal" id="userManagementModal">
+        <div class="modal-content user-mgmt-modal">
+            <div class="modal-header">
+                <h3>👤 User Management</h3>
+                <span class="close" onclick="closeUserManagementModal()">&times;</span>
+            </div>
+            <div class="user-mgmt-content">
+                <!-- Create User Form -->
+                <section class="create-user-section">
+                    <h4>Create New Account</h4>
+                    <form id="createUserForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="newUserEmail">Email Address</label>
+                                <input type="email" id="newUserEmail" required placeholder="officer@email.com">
+                            </div>
+                            <div class="form-group">
+                                <label for="newUserPassword">Password</label>
+                                <input type="password" id="newUserPassword" required placeholder="Min 6 characters">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="newUserName">Full Name</label>
+                                <input type="text" id="newUserName" required placeholder="Juan Dela Cruz">
+                            </div>
+                            <div class="form-group">
+                                <label for="newUserRole">Role</label>
+                                <select id="newUserRole" required>
+                                    <option value="officer">Officer</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Create Account</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Users List -->
+                <section class="users-list-section">
+                    <h4>System Users</h4>
+                    <div class="table-container">
+                        <table id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Login History -->
+                <section class="login-history-section">
+                    <h4>Recent Login History</h4>
+                    <div class="table-container history-table">
+                        <table id="loginHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Role</th>
+                                    <th>Login Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loginHistoryBody">
+                                <tr>
+                                    <td colspan="3" class="empty-state">Loading history...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
