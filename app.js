@@ -12,6 +12,7 @@ let unsubscribeUsers = null;
 let currentStatusFilter = 'All'; // 'All', 'Pending', 'Processed', 'Released'
 let agingSortDirection = 'none'; // 'none', 'desc', 'asc'
 let employerSortDirection = 'none'; // 'none', 'asc', 'desc'
+let confirmActionCallback = null;
 
 // Current user state
 let currentUser = null;
@@ -959,6 +960,24 @@ function clearForm() {
     }
 }
 
+// Generic Confirm Modal
+function showConfirmModal(title, message, confirmBtnText, confirmBtnClass, actionCallback) {
+    document.getElementById('confirmModalTitle').textContent = title || 'Confirmation';
+    document.getElementById('confirmModalMessage').textContent = message;
+    
+    const actionBtn = document.getElementById('confirmModalActionBtn');
+    actionBtn.textContent = confirmBtnText || 'Confirm';
+    actionBtn.className = `btn ${confirmBtnClass || 'btn-primary'}`;
+    
+    confirmActionCallback = actionCallback;
+    document.getElementById('confirmModal').style.display = 'block';
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirmModal').style.display = 'none';
+    confirmActionCallback = null;
+}
+
 // Edit modal handlers
 function openEditModal(id) {
     const record = currentRecords.find(r => r.id === id);
@@ -1057,12 +1076,12 @@ async function confirmDelete(id) {
         }
     }
 
-    if (confirm('Are you sure you want to delete this record?')) {
+    showConfirmModal('Delete Record', 'Are you sure you want to delete this record?', 'Delete', 'btn-danger', async () => {
         const success = await deleteRecord(id);
         if (success) {
             showNotification('Record deleted successfully!', 'success');
         }
-    }
+    });
 }
 
 // Search handlers
@@ -1522,7 +1541,22 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (e.target === deletedModal) {
             closeDeletedRecordsModal();
         }
+        const confirmModal = document.getElementById('confirmModal');
+        if (e.target === confirmModal) {
+            closeConfirmModal();
+        }
     });
+
+    // Confirm Modal Action
+    const confirmBtn = document.getElementById('confirmModalActionBtn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            if (confirmActionCallback) {
+                confirmActionCallback();
+            }
+            closeConfirmModal();
+        });
+    }
 
     // Employee Ratio Logic
     function setupRatioListeners(empId, procId, displayId) {
@@ -1559,6 +1593,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             closeEditModal();
             closeUserManagementModal();
             closeDeletedRecordsModal();
+            closeConfirmModal();
         }
     });
 });
@@ -1812,25 +1847,23 @@ async function deleteUserAccount(uid, email) {
         return;
     }
 
-    if (!confirm(`Are you sure you want to delete user ${email}?`)) {
-        return;
-    }
+    showConfirmModal('Delete User', `Are you sure you want to delete user ${email}?`, 'Delete', 'btn-danger', async () => {
+        try {
+            const { doc, deleteDoc } = window.firebaseApp;
 
-    try {
-        const { doc, deleteDoc } = window.firebaseApp;
+            // Delete user data from Firestore
+            await deleteDoc(doc(db, 'users', uid));
 
-        // Delete user data from Firestore
-        await deleteDoc(doc(db, 'users', uid));
+            // Note: To delete the actual Auth user, you need Firebase Admin SDK
+            // For now, we just delete the user data record
 
-        // Note: To delete the actual Auth user, you need Firebase Admin SDK
-        // For now, we just delete the user data record
-
-        showNotification('User deleted successfully', 'success');
-        loadUsersList();
-    } catch (error) {
-        console.error('Error deleting user:', error);
-        showNotification('Failed to delete user', 'error');
-    }
+            showNotification('User deleted successfully', 'success');
+            loadUsersList();
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            showNotification('Failed to delete user', 'error');
+        }
+    });
 }
 
 // Make functions available globally for onclick handlers
@@ -1847,6 +1880,7 @@ window.openDeletedRecordsModal = openDeletedRecordsModal;
 window.closeDeletedRecordsModal = closeDeletedRecordsModal;
 window.handleRestore = handleRestore;
 window.handlePermanentDelete = handlePermanentDelete;
+window.closeConfirmModal = closeConfirmModal;
 
 // Deleted Records Modal Handlers
 function openDeletedRecordsModal() {
@@ -1886,21 +1920,21 @@ function loadDeletedRecords() {
 }
 
 async function handleRestore(id) {
-    if (confirm('Are you sure you want to restore this record?')) {
+    showConfirmModal('Restore Record', 'Are you sure you want to restore this record?', 'Restore', 'btn-primary', async () => {
         const success = await restoreRecord(id);
         if (success) {
             showNotification('Record restored successfully!', 'success');
         }
-    }
+    });
 }
 
 async function handlePermanentDelete(id) {
-    if (confirm('WARNING: This action cannot be undone. Are you sure you want to permanently delete this record?')) {
+    showConfirmModal('Permanently Delete', 'WARNING: This action cannot be undone. Are you sure you want to permanently delete this record?', 'Permanently Delete', 'btn-danger', async () => {
         const success = await permanentlyDeleteRecord(id);
         if (success) {
             showNotification('Record permanently deleted!', 'success');
         }
-    }
+    });
 }
 
 // Reset user password (sends email link)
@@ -1910,17 +1944,15 @@ async function resetUserPassword(email) {
         return;
     }
 
-    if (!confirm(`Send password reset email to ${email}?`)) {
-        return;
-    }
-
-    try {
-        const { sendPasswordResetEmail } = window.firebaseApp;
-        await sendPasswordResetEmail(auth, email);
-        showNotification(`Password reset email sent to ${email}`, 'success');
-    } catch (error) {
-        console.error('Error sending reset email:', error);
-        showNotification(error.message || 'Failed to send reset email', 'error');
-    }
+    showConfirmModal('Reset Password', `Send password reset email to ${email}?`, 'Send Email', 'btn-primary', async () => {
+        try {
+            const { sendPasswordResetEmail } = window.firebaseApp;
+            await sendPasswordResetEmail(auth, email);
+            showNotification(`Password reset email sent to ${email}`, 'success');
+        } catch (error) {
+            console.error('Error sending reset email:', error);
+            showNotification(error.message || 'Failed to send reset email', 'error');
+        }
+    });
 }
 window.resetUserPassword = resetUserPassword;
