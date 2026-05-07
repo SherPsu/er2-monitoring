@@ -251,11 +251,13 @@ async function addRecord(data) {
             employer_name: data.employerName,
             pen: data.pen,
             num_employees: parseInt(data.numEmployees),
+            num_processed: parseInt(data.numProcessed) || 0,
             date_received: data.dateReceived,
             date_process: data.dateProcess || null,
             processed_by: data.processedBy || null,
             date_released: data.dateReleased || null,
             received_by: data.receivedBy || null,
+            created_by: currentUserData?.name || (currentUser ? currentUser.email.split('@')[0] : 'Unknown'),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         };
@@ -279,6 +281,7 @@ async function updateRecord(id, data) {
             employer_name: data.employerName,
             pen: data.pen,
             num_employees: parseInt(data.numEmployees),
+            num_processed: parseInt(data.numProcessed) || 0,
             date_received: data.dateReceived,
             date_process: data.dateProcess || null,
             processed_by: data.processedBy || null,
@@ -493,27 +496,38 @@ function applySortAndLoad() {
 // Get statistics object from current records
 function getStatistics() {
     const total = currentRecords.length;
-    const pending = currentRecords.filter(r => !r.date_process).length;
-    const processed = currentRecords.filter(r => r.date_process && !r.date_released).length;
-    const released = currentRecords.filter(r => r.date_released).length;
-    return { total, pending, processed, released };
+    const pending = currentRecords.filter(r => getStatus(r) === 'Pending').length;
+    const ongoing = currentRecords.filter(r => getStatus(r) === 'On Going').length;
+    const processed = currentRecords.filter(r => getStatus(r) === 'Processed').length;
+    const released = currentRecords.filter(r => getStatus(r) === 'Released').length;
+    return { total, pending, ongoing, processed, released };
 }
 
 // Calculate statistics from records
 function updateStatisticsFromRecords(records) {
     const total = records.length;
-    const pending = records.filter(r => !r.date_process).length;
-    const processed = records.filter(r => r.date_process && !r.date_released).length;
-    const released = records.filter(r => r.date_released).length;
+    const pending = records.filter(r => getStatus(r) === 'Pending').length;
+    const ongoing = records.filter(r => getStatus(r) === 'On Going').length;
+    const processed = records.filter(r => getStatus(r) === 'Processed').length;
+    const released = records.filter(r => getStatus(r) === 'Released').length;
 
     document.getElementById('totalRecords').textContent = total;
     document.getElementById('pendingRecords').textContent = pending;
+    const ongoingEl = document.getElementById('ongoingRecords');
+    if (ongoingEl) ongoingEl.textContent = ongoing;
     document.getElementById('processedRecords').textContent = processed;
     document.getElementById('releasedRecords').textContent = released;
 }
 
 // Get status based on dates
 function getStatus(record) {
+    const processed = record.num_processed || 0;
+    const total = record.num_employees || 1;
+    
+    if (processed > 0 && processed < total) {
+        return 'On Going';
+    }
+
     if (record.date_released) return 'Released';
     if (record.date_process) return 'Processed';
     return 'Pending';
@@ -522,6 +536,7 @@ function getStatus(record) {
 function getStatusClass(status) {
     switch (status) {
         case 'Pending': return 'status-pending';
+        case 'On Going': return 'status-ongoing';
         case 'Processed': return 'status-processed';
         case 'Released': return 'status-released';
         default: return 'status-pending';
@@ -593,7 +608,7 @@ function loadRecords(records = null) {
                 <td data-label="ID" title="${record.id}">${record.id}</td>
                 <td data-label="Employer's Name">${record.employer_name}</td>
                 <td data-label="PEN">${record.pen}</td>
-                <td data-label="Employees">${record.num_employees}</td>
+                <td data-label="Employees">${record.num_processed || 0}/${record.num_employees}</td>
                 <td data-label="Aging (Days)" class="aging-cell">${agingDays}</td>
                 <td data-label="Date Recv.">${formatDate(record.date_received)}</td>
                 <td data-label="Date Proc.">${formatDate(record.date_process)}</td>
@@ -648,11 +663,12 @@ function initCharts() {
     statusChart = new Chart(statusCtx, {
         type: 'doughnut',
         data: {
-            labels: ['Pending', 'Processed', 'Released'],
+            labels: ['Pending', 'On Going', 'Processed', 'Released'],
             datasets: [{
-                data: [0, 0, 0],
+                data: [0, 0, 0, 0],
                 backgroundColor: [
                     '#f59e0b', // amber for pending
+                    '#a855f7', // purple for ongoing
                     '#3b82f6', // blue for processed
                     '#10b981'  // green for released
                 ],
@@ -785,7 +801,7 @@ function updateCharts() {
     // Update status chart
     const stats = getStatistics();
     console.log('Stats:', stats);
-    statusChart.data.datasets[0].data = [stats.pending, stats.processed, stats.released];
+    statusChart.data.datasets[0].data = [stats.pending, stats.ongoing, stats.processed, stats.released];
     statusChart.update();
 
     // Update monthly chart
@@ -914,6 +930,7 @@ async function handleFormSubmit(e) {
         employerName: document.getElementById('employerName').value.trim(),
         pen: document.getElementById('pen').value.trim(),
         numEmployees: document.getElementById('numEmployees').value,
+        numProcessed: document.getElementById('numProcessed').value,
         dateReceived: document.getElementById('dateReceived').value,
         dateProcess: dateProcess,
         processedBy: processedBy,
@@ -947,10 +964,29 @@ function openEditModal(id) {
     const record = currentRecords.find(r => r.id === id);
     if (!record) return;
 
+    // Permission check
+    if (currentUserData?.role !== 'admin') {
+        const currentUserName = currentUserData?.name || (currentUser ? currentUser.email.split('@')[0] : '');
+        const recordOwner = record.created_by || record.processed_by || record.received_by;
+        
+        if (recordOwner && recordOwner !== currentUserName) {
+            showNotification('You do not have permission to edit other officers\' entries.', 'error');
+            return;
+        }
+    }
+
     document.getElementById('editId').value = record.id;
     document.getElementById('editEmployerName').value = record.employer_name;
     document.getElementById('editPen').value = record.pen;
     document.getElementById('editNumEmployees').value = record.num_employees;
+    document.getElementById('editNumProcessed').value = record.num_processed || 0;
+    
+    // Update display ratio
+    const editRatioDisplay = document.getElementById('editEmployeeRatioDisplay');
+    if(editRatioDisplay) {
+        editRatioDisplay.textContent = `${record.num_processed || 0}/${record.num_employees}`;
+    }
+
     document.getElementById('editDateReceived').value = record.date_received;
     document.getElementById('editDateProcess').value = record.date_process || '';
     document.getElementById('editProcessedBy').value = record.processed_by || '';
@@ -990,6 +1026,7 @@ async function handleEditSubmit(e) {
         employerName: document.getElementById('editEmployerName').value.trim(),
         pen: document.getElementById('editPen').value.trim(),
         numEmployees: document.getElementById('editNumEmployees').value,
+        numProcessed: document.getElementById('editNumProcessed').value,
         dateReceived: document.getElementById('editDateReceived').value,
         dateProcess: dateProcess,
         processedBy: processedBy,
@@ -1006,6 +1043,20 @@ async function handleEditSubmit(e) {
 
 // Delete confirmation
 async function confirmDelete(id) {
+    const record = currentRecords.find(r => r.id === id);
+    if (!record) return;
+
+    // Permission check
+    if (currentUserData?.role !== 'admin') {
+        const currentUserName = currentUserData?.name || (currentUser ? currentUser.email.split('@')[0] : '');
+        const recordOwner = record.created_by || record.processed_by || record.received_by;
+        
+        if (recordOwner && recordOwner !== currentUserName) {
+            showNotification('You do not have permission to delete other officers\' entries.', 'error');
+            return;
+        }
+    }
+
     if (confirm('Are you sure you want to delete this record?')) {
         const success = await deleteRecord(id);
         if (success) {
@@ -1038,7 +1089,8 @@ async function exportToExcel() {
         'ID': r.id,
         'Employer Name': r.employer_name,
         'PhilHealth Employer Number': r.pen,
-        'Number of Employees': r.num_employees,
+        'Total Employees': r.num_employees,
+        'Processed Employees': r.num_processed || 0,
         'Date Received': r.date_received,
         'Date Processed': r.date_process || '',
         'Processed By': r.processed_by || '',
@@ -1057,7 +1109,8 @@ async function exportToExcel() {
         { wch: 6 },   // ID
         { wch: 35 },  // Employer Name
         { wch: 20 },  // PEN
-        { wch: 18 },  // Number of Employees
+        { wch: 18 },  // Total Employees
+        { wch: 18 },  // Processed Employees
         { wch: 14 },  // Date Received
         { wch: 14 },  // Date Processed
         { wch: 20 },  // Processed By
@@ -1115,6 +1168,7 @@ async function importFromJSON(file) {
                         employerName: record.employer_name,
                         pen: record.pen,
                         numEmployees: record.num_employees,
+                        numProcessed: record.num_processed || 0,
                         dateReceived: record.date_received,
                         dateProcess: record.date_process,
                         processedBy: record.processed_by,
@@ -1469,6 +1523,34 @@ document.addEventListener('DOMContentLoaded', async function() {
             closeDeletedRecordsModal();
         }
     });
+
+    // Employee Ratio Logic
+    function setupRatioListeners(empId, procId, displayId) {
+        const empInput = document.getElementById(empId);
+        const procInput = document.getElementById(procId);
+        const display = document.getElementById(displayId);
+        
+        function update() {
+            let total = parseInt(empInput?.value) || 0;
+            let proc = parseInt(procInput?.value) || 0;
+            
+            // Prevent processed from exceeding total
+            if (proc > total) {
+                proc = total;
+                if (procInput) procInput.value = proc;
+            }
+            
+            if(display) display.textContent = `${proc}/${total}`;
+        }
+        
+        if (empInput && procInput) {
+            empInput.addEventListener('input', update);
+            procInput.addEventListener('input', update);
+        }
+    }
+    
+    setupRatioListeners('numEmployees', 'numProcessed', 'employeeRatioDisplay');
+    setupRatioListeners('editNumEmployees', 'editNumProcessed', 'editEmployeeRatioDisplay');
 
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {

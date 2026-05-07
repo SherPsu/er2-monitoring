@@ -79,20 +79,30 @@
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="numEmployees">Number of Employees </label>
+                                <label for="numEmployees">Total Number of Employees </label>
                                 <input type="number" id="numEmployees" name="numEmployees" required min="1">
                             </div>
                             <div class="form-group">
-                                <label for="dateReceived">Date Received </label>
-                                <input type="date" id="dateReceived" name="dateReceived" required>
+                                <label for="numProcessed">Number of Employees Processed</label>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="number" id="numProcessed" name="numProcessed" min="0" style="flex: 1;">
+                                    <span id="employeeRatioDisplay" style="font-weight: bold; color: var(--text-secondary); width: 60px; text-align: center;">0/0</span>
+                                </div>
                             </div>
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
+                                <label for="dateReceived">Date Received </label>
+                                <input type="date" id="dateReceived" name="dateReceived" required>
+                            </div>
+                            <div class="form-group">
                                 <label for="dateProcess">Date Processed</label>
                                 <input type="date" id="dateProcess" name="dateProcess">
                             </div>
+                        </div>
+
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="processedBy">Processed By</label>
                                 <input type="text" id="processedBy" name="processedBy">
@@ -137,6 +147,7 @@
                         <div class="filter-group" id="statusFilters">
                             <button class="btn btn-filter active" data-status="All">All</button>
                             <button class="btn btn-filter" data-status="Pending">Pending</button>
+                            <button class="btn btn-filter" data-status="On Going">On Going</button>
                             <button class="btn btn-filter" data-status="Processed">Processed</button>
                             <button class="btn btn-filter" data-status="Released">Released</button>
                         </div>
@@ -153,7 +164,7 @@
                                     <th data-tooltip="Auto-generated document ID">ID</th>
                                     <th id="sortEmployerBtn" class="sortable-header" data-tooltip="Legal name of the employer">Employer's Name <span id="sortEmployerIcon" class="sort-icon"></span></th>
                                     <th data-tooltip="PhilHealth Employer Number">PEN</th>
-                                    <th data-tooltip="Total number of registered employees">Employees</th>
+                                    <th data-tooltip="Processed / Total registered employees">Employees (Proc/Total)</th>
                                     <th id="sortAgingBtn" class="sortable-header" data-tooltip="Number of days since received">Aging (Days) <span id="sortAgingIcon" class="sort-icon"></span></th>
                                     <th data-tooltip="Date the ER2 form was received">Date Recv.</th>
                                     <th data-tooltip="Date the form was processed">Date Proc.</th>
@@ -183,6 +194,10 @@
                         <div class="stat-card">
                             <span class="stat-number" id="pendingRecords">0</span>
                             <span class="stat-label">Pending</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-number" id="ongoingRecords">0</span>
+                            <span class="stat-label">On Going</span>
                         </div>
                         <div class="stat-card">
                             <span class="stat-number" id="processedRecords">0</span>
@@ -241,19 +256,28 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="editNumEmployees">Number of Employees</label>
+                        <label for="editNumEmployees">Total Number of Employees</label>
                         <input type="number" id="editNumEmployees" required min="1">
                     </div>
                     <div class="form-group">
-                        <label for="editDateReceived">Date Received</label>
-                        <input type="date" id="editDateReceived" required>
+                        <label for="editNumProcessed">Number of Employees Processed</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="editNumProcessed" min="0" style="flex: 1;">
+                            <span id="editEmployeeRatioDisplay" style="font-weight: bold; color: var(--text-secondary); width: 60px; text-align: center;">0/0</span>
+                        </div>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
+                        <label for="editDateReceived">Date Received</label>
+                        <input type="date" id="editDateReceived" required>
+                    </div>
+                    <div class="form-group">
                         <label for="editDateProcess">Date Process</label>
                         <input type="date" id="editDateProcess">
                     </div>
+                </div>
+                <div class="form-row">
                     <div class="form-group">
                         <label for="editProcessedBy">Processed By</label>
                         <input type="text" id="editProcessedBy">
