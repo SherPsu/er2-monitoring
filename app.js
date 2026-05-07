@@ -6,8 +6,12 @@ let auth = null;
 let recordsCollection = null;
 let usersCollection = null;
 let currentRecords = [];
+let deletedRecords = [];
 let unsubscribeRecords = null;
 let unsubscribeUsers = null;
+let currentStatusFilter = 'All'; // 'All', 'Pending', 'Processed', 'Released'
+let agingSortDirection = 'none'; // 'none', 'desc', 'asc'
+let employerSortDirection = 'none'; // 'none', 'asc', 'desc'
 
 // Current user state
 let currentUser = null;
@@ -16,6 +20,7 @@ let currentUserData = null;
 // Chart instances
 let statusChart = null;
 let monthlyChart = null;
+let officerChart = null;
 
 // Initialize Firebase
 async function initFirebase() {
@@ -141,6 +146,14 @@ function updateUIForLoggedInUser() {
         tab.classList.remove('disabled');
     });
 
+    // Auto-fill Processed By for officers
+    if (currentUserData?.role === 'officer') {
+        const processedByInput = document.getElementById('processedBy');
+        if (processedByInput) {
+            processedByInput.value = currentUserData.name || currentUser.email.split('@')[0];
+        }
+    }
+
     // Close login modal if open
     closeLoginModal();
 }
@@ -196,17 +209,33 @@ function setupRealtimeListener() {
 
     unsubscribeRecords = onSnapshot(q, (snapshot) => {
         const records = [];
+        const deleted = [];
         snapshot.forEach((doc) => {
-            records.push({
-                id: doc.id,
-                ...doc.data()
-            });
+            const data = doc.data();
+            if (data.is_deleted) {
+                deleted.push({
+                    id: doc.id,
+                    ...data
+                });
+            } else {
+                records.push({
+                    id: doc.id,
+                    ...data
+                });
+            }
         });
 
         currentRecords = records;
-        loadRecords(records);
+        deletedRecords = deleted;
+        applySortAndLoad();
         updateStatisticsFromRecords(records);
         updateCharts();
+
+        // Update deleted records modal if open
+        const modal = document.getElementById('deletedRecordsModal');
+        if (modal && modal.style.display === 'block') {
+            loadDeletedRecords();
+        }
     }, (error) => {
         console.error('Error in real-time listener:', error);
         showNotification('Real-time sync error', 'error');
@@ -267,8 +296,46 @@ async function updateRecord(id, data) {
     }
 }
 
-// Delete record
+// Soft Delete record
 async function deleteRecord(id) {
+    try {
+        const { updateDoc, doc } = window.firebaseApp;
+
+        const recordRef = doc(db, 'er2_records', id);
+        await updateDoc(recordRef, {
+            is_deleted: true,
+            deleted_at: new Date().toISOString(),
+            deleted_by: currentUserData?.name || currentUser.email || 'Unknown'
+        });
+        return true;
+    } catch (error) {
+        console.error('Error deleting record:', error);
+        showNotification('Failed to delete record', 'error');
+        return false;
+    }
+}
+
+// Restore record
+async function restoreRecord(id) {
+    try {
+        const { updateDoc, doc } = window.firebaseApp;
+
+        const recordRef = doc(db, 'er2_records', id);
+        await updateDoc(recordRef, {
+            is_deleted: false,
+            deleted_at: null,
+            deleted_by: null
+        });
+        return true;
+    } catch (error) {
+        console.error('Error restoring record:', error);
+        showNotification('Failed to restore record', 'error');
+        return false;
+    }
+}
+
+// Permanently Delete record
+async function permanentlyDeleteRecord(id) {
     try {
         const { deleteDoc, doc } = window.firebaseApp;
 
@@ -276,8 +343,8 @@ async function deleteRecord(id) {
         await deleteDoc(recordRef);
         return true;
     } catch (error) {
-        console.error('Error deleting record:', error);
-        showNotification('Failed to delete record', 'error');
+        console.error('Error permanently deleting record:', error);
+        showNotification('Failed to permanently delete record', 'error');
         return false;
     }
 }
@@ -292,10 +359,13 @@ async function getAllRecords() {
 
         const records = [];
         snapshot.forEach((doc) => {
-            records.push({
-                id: doc.id,
-                ...doc.data()
-            });
+            const data = doc.data();
+            if (!data.is_deleted) {
+                records.push({
+                    id: doc.id,
+                    ...data
+                });
+            }
         });
 
         return records;
@@ -305,13 +375,119 @@ async function getAllRecords() {
     }
 }
 
-// Search records client-side
+// Search records client-side (now handled by applySortAndLoad)
 function searchRecords(query) {
     const lowerQuery = query.toLowerCase();
     return currentRecords.filter(record =>
         record.employer_name.toLowerCase().includes(lowerQuery) ||
         record.pen.toLowerCase().includes(lowerQuery)
     );
+}
+
+// Get aging days for a record
+function getAgingDays(record) {
+    const status = getStatus(record);
+    if (record.date_received && status !== 'Released') {
+        const receivedDate = new Date(record.date_received);
+        receivedDate.setHours(0, 0, 0, 0);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const diffTime = today - receivedDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays >= 0) {
+            return diffDays;
+        }
+    }
+    return -1;
+}
+
+// Toggle sort direction for Aging column
+function toggleAgingSort() {
+    // Reset employer sort
+    employerSortDirection = 'none';
+    const empIcon = document.getElementById('sortEmployerIcon');
+    if (empIcon) empIcon.textContent = '';
+
+    const icon = document.getElementById('sortAgingIcon');
+    
+    if (agingSortDirection === 'none' || agingSortDirection === 'asc') {
+        agingSortDirection = 'desc';
+        icon.textContent = '▼';
+    } else {
+        agingSortDirection = 'asc';
+        icon.textContent = '▲';
+    }
+    
+    applySortAndLoad();
+}
+
+// Toggle sort direction for Employer column
+function toggleEmployerSort() {
+    // Reset aging sort
+    agingSortDirection = 'none';
+    const agingIcon = document.getElementById('sortAgingIcon');
+    if (agingIcon) agingIcon.textContent = '';
+
+    const icon = document.getElementById('sortEmployerIcon');
+    
+    if (employerSortDirection === 'none' || employerSortDirection === 'desc') {
+        employerSortDirection = 'asc'; // A-Z first
+        icon.textContent = '▲';
+    } else {
+        employerSortDirection = 'desc';
+        icon.textContent = '▼';
+    }
+    
+    applySortAndLoad();
+}
+
+// Apply current sort and filters, then render
+function applySortAndLoad() {
+    let recordsToRender = [...currentRecords];
+    
+    const query = document.getElementById('searchInput').value.trim().toLowerCase();
+    if (query) {
+        recordsToRender = recordsToRender.filter(record =>
+            record.employer_name.toLowerCase().includes(query) ||
+            record.pen.toLowerCase().includes(query)
+        );
+    }
+    
+    if (currentStatusFilter !== 'All') {
+        recordsToRender = recordsToRender.filter(record => getStatus(record) === currentStatusFilter);
+    }
+    
+    if (agingSortDirection !== 'none') {
+        recordsToRender.sort((a, b) => {
+            const agingA = getAgingDays(a);
+            const agingB = getAgingDays(b);
+            
+            // Put items with no aging (-1) at the bottom for both sort directions
+            if (agingA === -1 && agingB === -1) return 0;
+            if (agingA === -1) return 1;
+            if (agingB === -1) return -1;
+
+            if (agingSortDirection === 'desc') {
+                return agingB - agingA;
+            } else {
+                return agingA - agingB;
+            }
+        });
+    } else if (employerSortDirection !== 'none') {
+        recordsToRender.sort((a, b) => {
+            const nameA = a.employer_name.toLowerCase();
+            const nameB = b.employer_name.toLowerCase();
+            
+            if (nameA < nameB) return employerSortDirection === 'asc' ? -1 : 1;
+            if (nameA > nameB) return employerSortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+    
+    loadRecords(recordsToRender);
 }
 
 // Get statistics object from current records
@@ -414,18 +590,18 @@ function loadRecords(records = null) {
 
         return `
             <tr class="${agingClass}">
-                <td title="${record.id}">${record.id}</td>
-                <td>${record.employer_name}</td>
-                <td>${record.pen}</td>
-                <td>${record.num_employees}</td>
-                <td class="aging-cell">${agingDays}</td>
-                <td>${formatDate(record.date_received)}</td>
-                <td>${formatDate(record.date_process)}</td>
-                <td>${record.processed_by || '-'}</td>
-                <td>${formatDate(record.date_released)}</td>
-                <td>${record.received_by || '-'}</td>
-                <td><span class="status-badge ${statusClass}">${status}</span></td>
-                <td>
+                <td data-label="ID" title="${record.id}">${record.id}</td>
+                <td data-label="Employer's Name">${record.employer_name}</td>
+                <td data-label="PEN">${record.pen}</td>
+                <td data-label="Employees">${record.num_employees}</td>
+                <td data-label="Aging (Days)" class="aging-cell">${agingDays}</td>
+                <td data-label="Date Recv.">${formatDate(record.date_received)}</td>
+                <td data-label="Date Proc.">${formatDate(record.date_process)}</td>
+                <td data-label="Proc. By">${record.processed_by || '-'}</td>
+                <td data-label="Date Rel.">${formatDate(record.date_released)}</td>
+                <td data-label="Recv. By">${record.received_by || '-'}</td>
+                <td data-label="Status"><span class="status-badge ${statusClass}">${status}</span></td>
+                <td data-label="Actions">
                     <div class="action-buttons">
                         <button class="btn btn-warning" onclick="openEditModal('${record.id}')">Edit</button>
                         <button class="btn btn-danger" onclick="confirmDelete('${record.id}')">Delete</button>
@@ -448,8 +624,9 @@ function updateStatistics() {
 function initCharts() {
     const statusCtx = document.getElementById('statusChart');
     const monthlyCtx = document.getElementById('monthlyChart');
+    const officerCtx = document.getElementById('officerChart');
 
-    if (!statusCtx || !monthlyCtx) {
+    if (!statusCtx || !monthlyCtx || !officerCtx) {
         console.error('Chart canvas elements not found');
         return;
     }
@@ -462,6 +639,9 @@ function initCharts() {
     }
     if (monthlyChart) {
         monthlyChart.destroy();
+    }
+    if (officerChart) {
+        officerChart.destroy();
     }
 
     // Status Distribution Chart (Doughnut)
@@ -545,6 +725,48 @@ function initCharts() {
         }
     });
 
+    // Officer Performance Chart (Bar)
+    officerChart = new Chart(officerCtx, {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Processed Records',
+                data: [],
+                backgroundColor: '#3b82f6',
+                borderRadius: 8,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y', // horizontal bar chart
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    grid: {
+                        display: true,
+                        drawBorder: false
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+
     console.log('Charts initialized successfully');
 }
 
@@ -572,6 +794,14 @@ function updateCharts() {
     monthlyChart.data.labels = weeklyData.labels;
     monthlyChart.data.datasets[0].data = weeklyData.data;
     monthlyChart.update();
+
+    // Update officer chart
+    const officerData = getOfficerData();
+    console.log('Officer data:', officerData);
+    officerChart.data.labels = officerData.labels;
+    officerChart.data.datasets[0].data = officerData.data;
+    officerChart.update();
+
     console.log('Charts updated successfully');
 }
 
@@ -611,6 +841,34 @@ function getWeeklyData() {
     return {
         labels: labels,
         data: labels.map(label => weeks[label].count)
+    };
+}
+
+// Get officer data for chart
+function getOfficerData() {
+    const officerCounts = {};
+
+    currentRecords.forEach(record => {
+        // Count if there is a processed_by value
+        if (record.processed_by) {
+            const officer = record.processed_by.trim();
+            if (officer) {
+                if (!officerCounts[officer]) {
+                    officerCounts[officer] = 0;
+                }
+                officerCounts[officer]++;
+            }
+        }
+    });
+
+    // Convert to array and sort by count descending
+    const sortedOfficers = Object.keys(officerCounts).map(officer => {
+        return { name: officer, count: officerCounts[officer] };
+    }).sort((a, b) => b.count - a.count);
+
+    return {
+        labels: sortedOfficers.map(item => item.name),
+        data: sortedOfficers.map(item => item.count)
     };
 }
 
@@ -674,6 +932,14 @@ async function handleFormSubmit(e) {
 // Clear form
 function clearForm() {
     document.getElementById('er2Form').reset();
+
+    // Auto-fill Processed By for officers after reset
+    if (currentUserData?.role === 'officer') {
+        const processedByInput = document.getElementById('processedBy');
+        if (processedByInput) {
+            processedByInput.value = currentUserData.name || currentUser.email.split('@')[0];
+        }
+    }
 }
 
 // Edit modal handlers
@@ -750,18 +1016,12 @@ async function confirmDelete(id) {
 
 // Search handlers
 function handleSearch() {
-    const query = document.getElementById('searchInput').value.trim();
-    if (query) {
-        const results = searchRecords(query);
-        loadRecords(results);
-    } else {
-        loadRecords();
-    }
+    applySortAndLoad();
 }
 
 function handleReset() {
     document.getElementById('searchInput').value = '';
-    loadRecords();
+    applySortAndLoad();
 }
 
 // Export to Excel
@@ -1114,6 +1374,31 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize table header tooltips
     initTableTooltips();
 
+    // Attach sort event
+    const sortAgingBtn = document.getElementById('sortAgingBtn');
+    if (sortAgingBtn) {
+        sortAgingBtn.addEventListener('click', toggleAgingSort);
+    }
+    
+    const sortEmployerBtn = document.getElementById('sortEmployerBtn');
+    if (sortEmployerBtn) {
+        sortEmployerBtn.addEventListener('click', toggleEmployerSort);
+    }
+
+    // Attach status filter events
+    const filterBtns = document.querySelectorAll('.btn-filter');
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Update active styling
+            filterBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update state and re-render
+            currentStatusFilter = this.getAttribute('data-status');
+            applySortAndLoad();
+        });
+    });
+
     // Initialize Firebase
     await initFirebase();
 
@@ -1179,6 +1464,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (e.target === userMgmtModal) {
             closeUserManagementModal();
         }
+        const deletedModal = document.getElementById('deletedRecordsModal');
+        if (e.target === deletedModal) {
+            closeDeletedRecordsModal();
+        }
     });
 
     // Keyboard shortcuts
@@ -1187,6 +1476,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (e.key === 'Escape') {
             closeEditModal();
             closeUserManagementModal();
+            closeDeletedRecordsModal();
         }
     });
 });
@@ -1471,6 +1761,65 @@ window.handleLogout = handleLogout;
 window.openUserManagementModal = openUserManagementModal;
 window.closeUserManagementModal = closeUserManagementModal;
 window.deleteUserAccount = deleteUserAccount;
+window.openDeletedRecordsModal = openDeletedRecordsModal;
+window.closeDeletedRecordsModal = closeDeletedRecordsModal;
+window.handleRestore = handleRestore;
+window.handlePermanentDelete = handlePermanentDelete;
+
+// Deleted Records Modal Handlers
+function openDeletedRecordsModal() {
+    document.getElementById('deletedRecordsModal').style.display = 'block';
+    loadDeletedRecords();
+}
+
+function closeDeletedRecordsModal() {
+    document.getElementById('deletedRecordsModal').style.display = 'none';
+}
+
+function loadDeletedRecords() {
+    const tbody = document.getElementById('deletedRecordsBody');
+    if (!tbody) return;
+
+    if (deletedRecords.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No deleted records found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = deletedRecords.map(record => {
+        return `
+            <tr>
+                <td>${record.employer_name}</td>
+                <td>${record.pen}</td>
+                <td>${formatDateWithTime(record.deleted_at)}</td>
+                <td>${record.deleted_by || '-'}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn btn-warning" style="background:var(--gov-green-primary); border-color:var(--gov-green-dark); color:white;" onclick="handleRestore('${record.id}')">Restore</button>
+                        <button class="btn btn-danger" onclick="handlePermanentDelete('${record.id}')">Perm. Delete</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function handleRestore(id) {
+    if (confirm('Are you sure you want to restore this record?')) {
+        const success = await restoreRecord(id);
+        if (success) {
+            showNotification('Record restored successfully!', 'success');
+        }
+    }
+}
+
+async function handlePermanentDelete(id) {
+    if (confirm('WARNING: This action cannot be undone. Are you sure you want to permanently delete this record?')) {
+        const success = await permanentlyDeleteRecord(id);
+        if (success) {
+            showNotification('Record permanently deleted!', 'success');
+        }
+    }
+}
 
 // Reset user password (sends email link)
 async function resetUserPassword(email) {

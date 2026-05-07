@@ -419,6 +419,36 @@ section h3::before {
     padding-top: 24px;
     border-top: 1px solid var(--border-light);
     flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.action-group, .filter-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btn-filter {
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-medium);
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: 20px;
+}
+
+.btn-filter:hover {
+    background: var(--gov-green-50);
+    border-color: var(--gov-green-primary);
+    color: var(--gov-green-primary);
+}
+
+.btn-filter.active {
+    background: var(--gov-green-primary);
+    color: white;
+    border-color: var(--gov-green-primary);
+    box-shadow: var(--shadow-sm);
 }
 
 .search-row input {
@@ -606,6 +636,25 @@ tbody tr:last-child td:last-child {
     height: 6px;
     border-radius: 50%;
     background: currentColor;
+}
+
+/* Sortable Header */
+.sortable-header {
+    cursor: pointer !important;
+    user-select: none;
+    position: relative;
+    padding-right: 20px;
+}
+
+.sortable-header:hover {
+    background: var(--gov-green-100) !important;
+    color: var(--gov-green-dark) !important;
+}
+
+.sort-icon {
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 12px;
 }
 
 .status-pending {
@@ -962,48 +1011,78 @@ tr.aging-critical td.aging-cell {
 /* Responsive - Mobile Optimized */
 @media (max-width: 768px) {
     .container {
-        padding: 16px;
+        padding: 12px;
     }
 
     header {
-        padding: 24px;
+        padding: 20px;
         border-radius: var(--radius-md);
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 20px;
     }
 
     .logo-section {
         flex-direction: column;
         text-align: center;
-        gap: 16px;
+        gap: 12px;
+        width: 100%;
     }
 
     .logo {
         width: 56px;
         height: 56px;
         font-size: 22px;
+        margin: 0 auto;
     }
 
     .header-text h1 {
-        font-size: 22px;
+        font-size: 20px;
     }
 
     .header-text h2 {
         font-size: 13px;
     }
 
+    .user-section {
+        align-items: center;
+        width: 100%;
+    }
+
+    .header-user-row {
+        flex-direction: column;
+        width: 100%;
+        gap: 16px;
+    }
+
+    .user-info {
+        align-items: center;
+        margin-right: 0;
+    }
+
+    .user-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .user-actions .btn {
+        width: 100%;
+    }
+
     .tab-nav {
-        flex-wrap: wrap;
+        flex-direction: column;
         gap: 8px;
     }
 
     .tab-btn {
-        flex: 1;
-        min-width: 100px;
-        padding: 12px 16px;
-        font-size: 13px;
+        width: 100%;
+        padding: 14px 16px;
+        font-size: 14px;
     }
 
     section {
-        padding: 24px;
+        padding: 20px;
         border-radius: var(--radius-md);
     }
 
@@ -1026,33 +1105,172 @@ tr.aging-critical td.aging-cell {
 
     .search-row input {
         width: 100%;
+        min-width: 0;
+    }
+
+    .export-import-row {
+        flex-direction: column;
+    }
+
+    .export-import-row .btn {
+        width: 100%;
+    }
+
+    /* Table adjustments */
+    #recordsTable thead {
+        display: none;
+    }
+
+    #recordsTable, #recordsTable tbody, #recordsTable tr, #recordsTable td {
+        display: block;
+        width: 100%;
+    }
+
+    #recordsTable {
+        min-width: 0;
+        border: none;
+        box-shadow: none;
+    }
+
+    #recordsTable tr {
+        margin-bottom: 16px;
+        border: 1px solid var(--border-light);
+        border-radius: var(--radius-md);
+        background: var(--bg-surface);
+        box-shadow: var(--shadow-sm);
+        padding: 8px;
+    }
+
+    #recordsTable td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--bg-subtle);
+        text-align: right;
+        min-height: 40px;
+    }
+
+    #recordsTable td[colspan] {
+        display: block;
+        text-align: center;
+    }
+
+    #recordsTable td[colspan]::before {
+        display: none;
+    }
+
+    #recordsTable td:last-child {
+        border-bottom: none;
+    }
+
+    #recordsTable td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-right: 16px;
+        text-align: left;
+    }
+
+    #recordsTable .action-buttons {
+        justify-content: flex-end;
+        width: 100%;
+        margin-top: 4px;
+    }
+
+    #recordsTable .action-buttons .btn {
+        flex: 0 1 auto;
+        min-width: 80px;
+    }
+
+    #usersTable, #loginHistoryTable {
+        min-width: 500px;
     }
 
     th, td {
-        padding: 8px 10px;
+        padding: 10px;
         font-size: 12px;
     }
 
     .action-buttons {
-        flex-direction: column;
+        flex-direction: row;
         gap: 5px;
-    }
-
-    .btn-danger, .btn-warning {
-        width: 100%;
     }
 
     .modal-content {
         margin: 20px auto;
         width: 95%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+        position: relative;
+        padding: 16px;
+    }
+
+    .modal-header h3 {
+        font-size: 18px;
+    }
+
+    .close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
     }
 
     #editForm {
-        padding: 15px;
+        padding: 16px;
     }
 
     .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    
+    .stat-card {
+        padding: 20px 16px;
+    }
+    
+    .stat-number {
+        font-size: 28px;
+    }
+
+    .charts-container {
+        grid-template-columns: 1fr;
+    }
+
+    /* Login Modal Specific */
+    .login-modal {
+        max-width: 100%;
+    }
+    
+    .login-branding {
+        padding: 30px 20px;
+    }
+    
+    .login-form {
+        padding: 30px 20px;
+    }
+
+    /* Notification responsive */
+    .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        min-width: 0;
+        width: auto;
+        max-width: none;
+    }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
     }
 }
 

@@ -129,8 +129,17 @@
                         <button class="btn btn-secondary" id="resetBtn">Reset</button>
                     </div>
                     <div class="export-import-row">
-                        <button class="btn btn-export" id="exportBtn">Export to Excel</button>
-                        <button class="btn btn-secondary" id="importBtn">Import Data</button>
+                        <div class="action-group">
+                            <button class="btn btn-export" id="exportBtn">Export to Excel</button>
+                            <button class="btn btn-secondary" id="importBtn">Import Data</button>
+                            <button class="btn btn-secondary" style="color:var(--accent-red); border-color:#fecaca;" onclick="openDeletedRecordsModal()">Recently Deleted</button>
+                        </div>
+                        <div class="filter-group" id="statusFilters">
+                            <button class="btn btn-filter active" data-status="All">All</button>
+                            <button class="btn btn-filter" data-status="Pending">Pending</button>
+                            <button class="btn btn-filter" data-status="Processed">Processed</button>
+                            <button class="btn btn-filter" data-status="Released">Released</button>
+                        </div>
                     </div>
                 </section>
 
@@ -142,10 +151,10 @@
                             <thead>
                                 <tr>
                                     <th data-tooltip="Auto-generated document ID">ID</th>
-                                    <th data-tooltip="Legal name of the employer">Employer's Name</th>
+                                    <th id="sortEmployerBtn" class="sortable-header" data-tooltip="Legal name of the employer">Employer's Name <span id="sortEmployerIcon" class="sort-icon"></span></th>
                                     <th data-tooltip="PhilHealth Employer Number">PEN</th>
                                     <th data-tooltip="Total number of registered employees">Employees</th>
-                                    <th data-tooltip="Number of days since received">Aging (Days)</th>
+                                    <th id="sortAgingBtn" class="sortable-header" data-tooltip="Number of days since received">Aging (Days) <span id="sortAgingIcon" class="sort-icon"></span></th>
                                     <th data-tooltip="Date the ER2 form was received">Date Recv.</th>
                                     <th data-tooltip="Date the form was processed">Date Proc.</th>
                                     <th data-tooltip="Officer who processed the form">Proc. By</th>
@@ -197,6 +206,12 @@
                             <h4>Weekly Records</h4>
                             <div class="chart-canvas-container">
                                 <canvas id="monthlyChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h4>Processed by Officer</h4>
+                            <div class="chart-canvas-container">
+                                <canvas id="officerChart"></canvas>
                             </div>
                         </div>
                     </div>
@@ -393,6 +408,36 @@
                                 <tr>
                                     <td colspan="3" class="empty-state">Loading history...</td>
                                 </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deleted Records Modal -->
+    <div class="modal" id="deletedRecordsModal">
+        <div class="modal-content user-mgmt-modal">
+            <div class="modal-header">
+                <h3>🗑️ Recently Deleted Records</h3>
+                <span class="close" onclick="closeDeletedRecordsModal()">&times;</span>
+            </div>
+            <div class="user-mgmt-content">
+                <section class="users-list-section">
+                    <p style="margin-bottom: 15px; color: var(--text-secondary); font-size: 14px;">Records deleted here can be restored or permanently removed.</p>
+                    <div class="table-container">
+                        <table id="deletedTable">
+                            <thead>
+                                <tr>
+                                    <th>Employer's Name</th>
+                                    <th>PEN</th>
+                                    <th>Date Deleted</th>
+                                    <th>Deleted By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deletedRecordsBody">
                             </tbody>
                         </table>
                     </div>
