@@ -1,6 +1,50 @@
 // PhilHealth ER2 MEMSEC Monitoring System - JavaScript
 // Using Firebase Firestore for cloud database with Authentication
 
+// ============================================================================
+// FIREBASE CONFIGURATION
+// ============================================================================
+// Loads from environment variables for security
+const firebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID
+};
+
+/**
+ * Environment Configuration Loader
+ * Loads Firebase config from environment variables during development
+ * For production, use a proper build tool like Vite
+ */
+function getEnvConfig() {
+    // Try to get from window object (set by build tool or server)
+    if (window.__ENV__) {
+        return window.__ENV__;
+    }
+
+    // Fallback: Try to get from meta tags (if set by server)
+    const apiKey = document.querySelector('meta[name="firebase-api-key"]')?.content;
+    if (apiKey) {
+        return {
+            apiKey: apiKey,
+            authDomain: document.querySelector('meta[name="firebase-auth-domain"]')?.content,
+            projectId: document.querySelector('meta[name="firebase-project-id"]')?.content,
+            storageBucket: document.querySelector('meta[name="firebase-storage-bucket"]')?.content,
+            messagingSenderId: document.querySelector('meta[name="firebase-messaging-sender-id"]')?.content,
+            appId: document.querySelector('meta[name="firebase-app-id"]')?.content
+        };
+    }
+
+    console.warn('Firebase config not found. Make sure environment variables are properly configured.');
+    return null;
+}
+
+// ============================================================================
+// APPLICATION STATE
+// ============================================================================
 let db = null;
 let auth = null;
 let recordsCollection = null;
@@ -1252,6 +1296,31 @@ function switchToTab(tabName) {
     }
 }
 
+// ==================== PASSWORD TOGGLE ====================
+
+// Toggle password visibility
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const button = input.nextElementSibling;
+    const icon = button.querySelector('.eye-icon');
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        // Change to eye-slash icon (hidden)
+        icon.innerHTML = `
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+        `;
+    } else {
+        input.type = 'password';
+        // Change back to eye icon (visible)
+        icon.innerHTML = `
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+        `;
+    }
+}
+
 // ==================== FIRST ADMIN SETUP ====================
 
 // Check if this is the first time setup (no users in the system)
@@ -1881,6 +1950,7 @@ window.closeDeletedRecordsModal = closeDeletedRecordsModal;
 window.handleRestore = handleRestore;
 window.handlePermanentDelete = handlePermanentDelete;
 window.closeConfirmModal = closeConfirmModal;
+window.togglePassword = togglePassword;
 
 // Deleted Records Modal Handlers
 function openDeletedRecordsModal() {
@@ -1956,3 +2026,50 @@ async function resetUserPassword(email) {
     });
 }
 window.resetUserPassword = resetUserPassword;
+
+// ============================================================================
+// ACCESS CHOICE MODAL HANDLER
+// ============================================================================
+
+/**
+ * Handle user's choice in the access modal
+ * @param {string} choice - 'pacd' or 'er2'
+ */
+window.handleAccessChoice = function(choice) {
+    const overlay = document.getElementById('accessChoiceOverlay');
+    
+    if (choice === 'pacd') {
+        // Redirect to PACD system
+        window.location.href = 'https://pacd-omega.vercel.app/';
+    } else if (choice === 'er2') {
+        // Close the modal and show login
+        if (overlay) {
+            overlay.classList.add('hidden');
+        }
+        // Open the login modal
+        openLoginModal();
+    }
+};
+
+/**
+ * Show the access choice modal on page load
+ */
+function showAccessChoiceModal() {
+    const overlay = document.getElementById('accessChoiceOverlay');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+}
+
+/**
+ * Initialize access modal on page load
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    // Show the access choice modal when the page loads
+    showAccessChoiceModal();
+});
+
+// ============================================================================
+// EXPORTS FOR ES6 MODULES
+// ============================================================================
+export { firebaseConfig, getEnvConfig };

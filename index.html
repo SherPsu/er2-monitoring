@@ -8,12 +8,12 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK and App Initialization -->
     <script type="module">
         import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, getDocs, getDoc, setDoc, doc, query, orderBy, where, onSnapshot, limit, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
-        import { firebaseConfig } from './firebase-config.js';
+        import { firebaseConfig } from './app.js';
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -25,6 +25,26 @@
 </head>
 
 <body>
+    <!-- Access Choice Modal -->
+    <div id="accessChoiceOverlay" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-content">
+                <h2 class="modal-title">Which service would you like to access?</h2>
+                <p class="modal-description">Please choose where you want to go</p>
+                <div class="modal-buttons">
+                    <button class="btn btn-modal btn-modal-pacd" onclick="handleAccessChoice('pacd')">
+                        <span class="btn-text">PACD System</span>
+                        <span class="btn-subtext">PhilHealth PACD Portal</span>
+                    </button>
+                    <button class="btn btn-modal btn-modal-er2" onclick="handleAccessChoice('er2')">
+                        <span class="btn-text">ER2 Monitoring</span>
+                        <span class="btn-subtext">This Application</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <div class="logo-section">
@@ -333,7 +353,15 @@
                         </svg>
                         Password
                     </label>
-                    <input type="password" id="loginPassword" required placeholder="Enter your secure password">
+                    <div style="position: relative;">
+                        <input type="password" id="loginPassword" required placeholder="Enter your secure password">
+                        <button type="button" class="password-toggle" onclick="togglePassword('loginPassword')" tabindex="-1">
+                            <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="login-options">
@@ -374,7 +402,15 @@
                             </div>
                             <div class="form-group">
                                 <label for="newUserPassword">Password</label>
-                                <input type="password" id="newUserPassword" required placeholder="Min 6 characters">
+                                <div style="position: relative;">
+                                    <input type="password" id="newUserPassword" required placeholder="Min 6 characters">
+                                    <button type="button" class="password-toggle" onclick="togglePassword('newUserPassword')" tabindex="-1">
+                                        <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="form-row">
@@ -487,7 +523,7 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 
 </html>
