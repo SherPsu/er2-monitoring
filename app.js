@@ -1684,34 +1684,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Auto-initialize the app for ER2 Monitoring
     // If the user wants PACD, they will click the button and redirect
     initApp();
-        const loginModal = document.getElementById('loginModal');
-        if (e.target === loginModal) {
-            // Don't close login modal by clicking outside
-        }
-        const userMgmtModal = document.getElementById('userManagementModal');
-        if (e.target === userMgmtModal) {
-            closeUserManagementModal();
-        }
-        const deletedModal = document.getElementById('deletedRecordsModal');
-        if (e.target === deletedModal) {
-            closeDeletedRecordsModal();
-        }
-        const confirmModal = document.getElementById('confirmModal');
-        if (e.target === confirmModal) {
-            closeConfirmModal();
-        }
-    });
-
-    // Confirm Modal Action
-    const confirmBtn = document.getElementById('confirmModalActionBtn');
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', () => {
-            if (confirmActionCallback) {
-                confirmActionCallback();
-            }
-            closeConfirmModal();
-        });
-    }
 
     // Employee Ratio Logic
     function setupRatioListeners(empId, procId, displayId) {
@@ -1740,17 +1712,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     setupRatioListeners('numEmployees', 'numProcessed', 'employeeRatioDisplay');
     setupRatioListeners('editNumEmployees', 'editNumProcessed', 'editEmployeeRatioDisplay');
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        // Escape to close modal
-        if (e.key === 'Escape') {
-            closeEditModal();
-            closeUserManagementModal();
-            closeDeletedRecordsModal();
-            closeConfirmModal();
-        }
-    });
 });
 
 // ==================== AUTHENTICATION FUNCTIONS ====================
