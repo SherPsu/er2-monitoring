@@ -38,13 +38,32 @@ Before using the system, you must configure Firebase:
 2. Register app with a nickname (e.g., "ER2-Monitoring")
 3. Copy the `firebaseConfig` object
 
-### Step 3: Configure Firestore
+### Step 3: Configure Environment Variables
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Open `.env` and replace all placeholder values with your Firebase config credentials from Step 2:
+   ```
+   VITE_FIREBASE_API_KEY=your_actual_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   ```
+
+**Important**: Never commit `.env` to version control. It's already in `.gitignore` to protect your secrets.
+
+### Step 4: Configure Firestore
 1. Go to "Firestore Database" from left menu
 2. Click "Create database"
 3. Start in **test mode** (allow read/write for development)
 4. Select a location close to you (e.g., `asia-southeast1` for Philippines)
 
-### Step 4: Update Configuration
+### Step 5: Update Configuration
 Open `app.js` and replace the `firebaseConfig` object (lines 9-17) with your config:
 
 ```javascript

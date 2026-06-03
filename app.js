@@ -4,14 +4,14 @@
 // ============================================================================
 // FIREBASE CONFIGURATION
 // ============================================================================
-// Loads from environment variables for security
+// Loads from environment variables for security (works with Vite, Vercel, and direct import)
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID
+    apiKey: import.meta?.env?.VITE_FIREBASE_API_KEY || process.env?.VITE_FIREBASE_API_KEY || window.__ENV__?.VITE_FIREBASE_API_KEY || '',
+    authDomain: import.meta?.env?.VITE_FIREBASE_AUTH_DOMAIN || process.env?.VITE_FIREBASE_AUTH_DOMAIN || window.__ENV__?.VITE_FIREBASE_AUTH_DOMAIN || '',
+    projectId: import.meta?.env?.VITE_FIREBASE_PROJECT_ID || process.env?.VITE_FIREBASE_PROJECT_ID || window.__ENV__?.VITE_FIREBASE_PROJECT_ID || '',
+    storageBucket: import.meta?.env?.VITE_FIREBASE_STORAGE_BUCKET || process.env?.VITE_FIREBASE_STORAGE_BUCKET || window.__ENV__?.VITE_FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: import.meta?.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || window.__ENV__?.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: import.meta?.env?.VITE_FIREBASE_APP_ID || process.env?.VITE_FIREBASE_APP_ID || window.__ENV__?.VITE_FIREBASE_APP_ID || ''
 };
 
 /**
@@ -48,6 +48,26 @@ function getEnvConfig() {
 let db = null;
 let auth = null;
 let recordsCollection = null;
+
+/**
+ * Handle Access Choice Modal
+ * Routes user to selected service (PACD or ER2 Monitoring)
+ */
+function handleAccessChoice(choice) {
+    const overlay = document.getElementById('accessChoiceOverlay');
+    
+    if (choice === 'pacd') {
+        // Redirect to PACD System
+        window.location.href = 'https://philhealth.gov.ph/pacd'; // Replace with actual PACD URL
+    } else if (choice === 'er2') {
+        // Hide modal and proceed with ER2 Monitoring
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+        // Initialize the application
+        initApp();
+    }
+}
 let usersCollection = null;
 let currentRecords = [];
 let deletedRecords = [];
@@ -1489,7 +1509,15 @@ function initTableTooltips() {
 }
 
 // Initialize event listeners when DOM is loaded
-document.addEventListener('DOMContentLoaded', async function() {
+// ============================================================================
+// APPLICATION INITIALIZATION
+// ============================================================================
+
+/**
+ * Initialize the entire application
+ * Called when user selects ER2 Monitoring from access choice modal
+ */
+async function initApp() {
     // Initialize tabs
     initTabs();
 
@@ -1510,12 +1538,29 @@ document.addEventListener('DOMContentLoaded', async function() {
             dtElement.textContent = now.toLocaleString('en-US', options);
         }
     }
-    updateDateTime(); // Initial call
+    updateDateTime();
     setInterval(updateDateTime, 1000);
 
     // Initialize table header tooltips
     initTableTooltips();
 
+    // Initialize Firebase
+    await initFirebase();
+
+    // Setup event listeners
+    setupEventListeners();
+
+    // Check if this is first time setup
+    if (await checkFirstTimeSetup()) {
+        openLoginModal();
+        return;
+    }
+}
+
+/**
+ * Setup all event listeners for the application
+ */
+function setupEventListeners() {
     // Attach sort event
     const sortAgingBtn = document.getElementById('sortAgingBtn');
     if (sortAgingBtn) {
@@ -1531,66 +1576,92 @@ document.addEventListener('DOMContentLoaded', async function() {
     const filterBtns = document.querySelectorAll('.btn-filter');
     filterBtns.forEach(btn => {
         btn.addEventListener('click', function() {
-            // Update active styling
             filterBtns.forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            
-            // Update state and re-render
             currentStatusFilter = this.getAttribute('data-status');
             applySortAndLoad();
         });
     });
 
-    // Initialize Firebase
-    await initFirebase();
-
-    // Check if this is first time setup (no admin exists)
-    // This will show the admin setup form automatically
-    if (await checkFirstTimeSetup()) {
-        // First time setup - show the setup form and stop further initialization
-        openLoginModal();
-        return;
+    // Form submission
+    const er2Form = document.getElementById('er2Form');
+    if (er2Form) {
+        er2Form.addEventListener('submit', handleFormSubmit);
     }
 
-    // Form submission
-    document.getElementById('er2Form').addEventListener('submit', handleFormSubmit);
-
     // Clear button
-    document.getElementById('clearBtn').addEventListener('click', clearForm);
+    const clearBtn = document.getElementById('clearBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearForm);
+    }
 
     // Search
-    document.getElementById('searchBtn').addEventListener('click', handleSearch);
-    document.getElementById('resetBtn').addEventListener('click', handleReset);
-    document.getElementById('searchInput').addEventListener('keyup', function(e) {
-        if (e.key === 'Enter') handleSearch();
-    });
+    const searchBtn = document.getElementById('searchBtn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', handleSearch);
+    }
+    
+    const resetBtn = document.getElementById('resetBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', handleReset);
+    }
+    
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') handleSearch();
+        });
+    }
 
     // Export
-    document.getElementById('exportBtn').addEventListener('click', exportToExcel);
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportToExcel);
+    }
 
     // Import
-    document.getElementById('importBtn').addEventListener('click', function() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = function(e) {
-            if (e.target.files.length > 0) {
-                importFromJSON(e.target.files[0]);
-            }
-        };
-        input.click();
-    });
+    const importBtn = document.getElementById('importBtn');
+    if (importBtn) {
+        importBtn.addEventListener('click', function() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(e) {
+                if (e.target.files.length > 0) {
+                    importFromJSON(e.target.files[0]);
+                }
+            };
+            input.click();
+        });
+    }
 
     // Edit modal
-    document.getElementById('editForm').addEventListener('submit', handleEditSubmit);
-    document.querySelector('.close').addEventListener('click', closeEditModal);
-    document.getElementById('cancelEdit').addEventListener('click', closeEditModal);
+    const editForm = document.getElementById('editForm');
+    if (editForm) {
+        editForm.addEventListener('submit', handleEditSubmit);
+    }
+    
+    const closeBtn = document.querySelector('.close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeEditModal);
+    }
+    
+    const cancelEdit = document.getElementById('cancelEdit');
+    if (cancelEdit) {
+        cancelEdit.addEventListener('click', closeEditModal);
+    }
 
     // Login form
-    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
 
     // Create user form (admin only)
-    document.getElementById('createUserForm').addEventListener('submit', handleCreateUser);
+    const createUserForm = document.getElementById('createUserForm');
+    if (createUserForm) {
+        createUserForm.addEventListener('submit', handleCreateUser);
+    }
 
     // Close modal when clicking outside
     window.addEventListener('click', function(e) {
@@ -1598,6 +1669,21 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (e.target === modal) {
             closeEditModal();
         }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeEditModal();
+            closeLoginModal();
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    // Auto-initialize the app for ER2 Monitoring
+    // If the user wants PACD, they will click the button and redirect
+    initApp();
         const loginModal = document.getElementById('loginModal');
         if (e.target === loginModal) {
             // Don't close login modal by clicking outside
